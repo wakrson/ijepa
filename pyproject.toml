@@ -1,0 +1,103 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ijepa"
+version = "0.0.0"
+
+description = "A computer vision project based on I-JEPA"
+readme = "README.md"
+#requires-python = ">=3.12,<3.14"
+authors = [
+    { name = "Meta AI" }
+]
+license = { file = "LICENSE.md" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+#dynamic = ["version"]
+
+dependencies = [
+    "matplotlib>=3.10.3",
+    "rasterio",
+    "torch==2.11.0",
+    "torchvision==0.26.0",
+    "torchaudio==2.11.0",
+    "numpy",
+    "ftfy",
+    "omegaconf",
+    "regex",
+    "scikit-learn",
+    "submitit",
+    "termcolor",
+    "torchmetrics",
+    "tqdm",
+]
+
+[project.urls]
+Homepage = "http://github.com/wakrson/ijepa"
+
+[dependency-groups]
+dev = [
+    "docstr-coverage==2.3.2",
+    "mypy[reports]==1.17",
+    "pylint==3.3.8",
+    "ruff==0.12.8",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.dynamic]
+version = { attr = "ijepa.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml"]
+
+[tool.pylint.master]
+persistent = false
+score = false
+
+[tool.pylint.messages_control]
+disable = "all"
+enable = [
+  "miscellaneous",
+  "similarities",
+]
+
+[tool.pylint.similarities]
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = true
+min-similarity-lines = 8
+
+[tool.pylint.reports]
+reports = false
+
+[tool.pylint.miscellaneous]
+notes = [
+  "FIXME",
+  "XXX",
+  "TODO",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["E203", "E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"hubconf.py" = ["F401"]

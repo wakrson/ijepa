@@ -34,6 +34,35 @@ Empirically, I-JEPA learns strong off-the-shelf semantic representations without
 ![1percenteval](https://github.com/facebookresearch/ijepa/assets/7530871/e6e5291f-ca51-43a4-a6cf-069811094ece)
 ![lineareval](https://github.com/facebookresearch/ijepa/assets/7530871/d8cffa73-5350-444e-987a-7e131a86d767)
 
+## Downstream Evaluation Tasks
+
+A roadmap of downstream tasks for probing I-JEPA's frozen features. The paper focuses on classification and the synthetic Clevr low-level probes; the most interesting open direction is **real dense prediction** (segmentation, depth), where I-JEPA can be compared head-to-head against augmentation/curation-heavy backbones like DINOv2.
+
+**⭐ Headline experiment — real dense prediction.** The paper argues I-JEPA captures low-level spatial structure, but only validates this on the synthetic Clevr benchmark. Freeze the encoder, train a linear head, and see whether the claim holds on real dense tasks:
+- [ ] Semantic segmentation — **ADE20K** (linear probe on frozen features)
+- [ ] Monocular depth estimation — **NYUv2** (linear probe on frozen features)
+
+**Reproduce the paper's suite (baseline sanity check).** Match the reported numbers first, to validate the feature-extraction and probing harness before extending:
+- [ ] ImageNet-1K linear probe
+- [ ] Semi-supervised ImageNet-1K (1% labels)
+- [ ] Transfer classification — CIFAR-100, Places205, iNaturalist-18 (linear probe)
+- [ ] Low-level probes — Clevr/Count (object counting), Clevr/Dist (depth/distance)
+
+**Extend dense prediction.** Broaden beyond the headline pair:
+- [ ] Segmentation — Cityscapes, Pascal VOC
+- [ ] Depth — KITTI, plus NYUv2 → SUN RGB-D as an out-of-distribution transfer check
+- [ ] Optional heavier decoder (e.g. DPT) on top of the frozen backbone
+
+**Global tasks beyond classification.**
+- [ ] Instance-level retrieval — Oxford, Paris, Met, AmsterTime (cosine similarity on pooled features)
+- [ ] Fine-grained classification — iNaturalist variants
+
+**Video (stretch goal).**
+- [ ] Video object segmentation tracking — DAVIS, YouTube-VOS, MOSE (propagate masks via patch-feature similarity, no training)
+
+**Notes on the I-JEPA backbone.**
+- I-JEPA uses a ViT *without* a `[cls]` token — use **average-pooled patch representations** for global/image-level tasks.
+- Dense-task granularity is set by the **patch size**; larger patches (e.g. ViT-g/16) helped semantic tasks but hurt low-level ones in the paper, so expect segmentation/depth to be patch-size sensitive.
 
 ## Pretrained models
 
@@ -140,6 +169,13 @@ python main_distributed.py \
 * torchvision
 * Other dependencies: pyyaml, numpy, opencv, submitit
 
+### Installation
+Install the package (and its dependencies) in editable mode. Pass the PyTorch CUDA 12.8 wheel index so that a matching GPU build of PyTorch is pulled in:
+```
+pip install -e . --extra-index-url https://download.pytorch.org/whl/cu128
+pip install -e . --extra-index-url https://download.pytorch.org/whl/cu13
+```
+
 ## License
 See the [LICENSE](./LICENSE) file for details about the license under which this code is made available.
 
@@ -152,3 +188,4 @@ If you find this repository useful in your research, please consider giving a st
   journal={arXiv preprint arXiv:2301.08243},
   year={2023}
 }
+```
