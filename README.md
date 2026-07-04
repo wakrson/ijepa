@@ -38,7 +38,7 @@ Empirically, I-JEPA learns strong off-the-shelf semantic representations without
 
 A roadmap of downstream tasks for probing I-JEPA's frozen features. The paper focuses on classification and the synthetic Clevr low-level probes; the most interesting open direction is **real dense prediction** (segmentation, depth), where I-JEPA can be compared head-to-head against augmentation/curation-heavy backbones like DINOv2.
 
-**⭐ Headline experiment — real dense prediction.** The paper argues I-JEPA captures low-level spatial structure, but only validates this on the synthetic Clevr benchmark. Freeze the encoder, train a linear head, and see whether the claim holds on real dense tasks:
+** Headline experiment — real dense prediction.** The paper argues I-JEPA captures low-level spatial structure, but only validates this on the synthetic Clevr benchmark. Freeze the encoder, train a linear head, and see whether the claim holds on real dense tasks:
 - [ ] Semantic segmentation — **ADE20K** (linear probe on frozen features)
 - [ ] Monocular depth estimation — **NYUv2** (linear probe on frozen features)
 
@@ -51,14 +51,8 @@ A roadmap of downstream tasks for probing I-JEPA's frozen features. The paper fo
 **Extend dense prediction.** Broaden beyond the headline pair:
 - [ ] Segmentation — Cityscapes, Pascal VOC
 - [ ] Depth — KITTI, plus NYUv2 → SUN RGB-D as an out-of-distribution transfer check
+- [ ] Detection
 - [ ] Optional heavier decoder (e.g. DPT) on top of the frozen backbone
-
-**Global tasks beyond classification.**
-- [ ] Instance-level retrieval — Oxford, Paris, Met, AmsterTime (cosine similarity on pooled features)
-- [ ] Fine-grained classification — iNaturalist variants
-
-**Video (stretch goal).**
-- [ ] Video object segmentation tracking — DAVIS, YouTube-VOS, MOSE (propagate masks via patch-feature similarity, no training)
 
 **Notes on the I-JEPA backbone.**
 - I-JEPA uses a ViT *without* a `[cls]` token — use **average-pooled patch representations** for global/image-level tasks.

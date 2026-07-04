@@ -39,6 +39,7 @@ dependencies = [
     "termcolor",
     "torchmetrics",
     "tqdm",
+    "wandb"
 ]
 
 [project.urls]
