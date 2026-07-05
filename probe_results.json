@@ -1,0 +1,93 @@
+[
+  {
+    "repr": "last",
+    "head": "linear",
+    "ref_lr": 0.01,
+    "wd": 0.0005,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "linear",
+    "ref_lr": 0.01,
+    "wd": 0.0,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "linear",
+    "ref_lr": 0.05,
+    "wd": 0.0005,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "linear",
+    "ref_lr": 0.05,
+    "wd": 0.0,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "linear",
+    "ref_lr": 0.001,
+    "wd": 0.0005,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "linear",
+    "ref_lr": 0.001,
+    "wd": 0.0,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "bn_linear",
+    "ref_lr": 0.01,
+    "wd": 0.0005,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "bn_linear",
+    "ref_lr": 0.01,
+    "wd": 0.0,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "bn_linear",
+    "ref_lr": 0.05,
+    "wd": 0.0005,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "bn_linear",
+    "ref_lr": 0.05,
+    "wd": 0.0,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "bn_linear",
+    "ref_lr": 0.001,
+    "wd": 0.0005,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last",
+    "head": "bn_linear",
+    "ref_lr": 0.001,
+    "wd": 0.0,
+    "val_top1": 0.1
+  },
+  {
+    "repr": "last4",
+    "head": "linear",
+    "ref_lr": 0.01,
+    "wd": 0.0005,
+    "val_top1": 0.1
+  }
+]

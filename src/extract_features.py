@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from src.helper import init_target_encoder, load_target_checkpoint
+from src.helper import init_target_encoder, load_target_encoder
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -35,8 +35,8 @@ def main():
     if device.type != "cuda":
         print("CUDA not available")
     
-    model = init_target_encoder(device, args.patch_size, args.model_name)
-    model, _, _, _ = load_target_checkpoint(device, args.checkpoint, model)
+    model = init_target_encoder(args.patch_size, args.model_name)
+    model, _, _, _ = load_target_encoder(args.checkpoint, model)
 
     model.eval().to(device)
     if device.type == "cuda":
@@ -80,8 +80,6 @@ def main():
 
     n = len(dataset)
     out_dir = Path(args.out_dir)
-    #if out_dir.exists():
-    #    out_dir /= str(time.time_ns())
     
     out_dir.mkdir(exist_ok=True, parents=True)
     feats_path = out_dir / "features.npy"

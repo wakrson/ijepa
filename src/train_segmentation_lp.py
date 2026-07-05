@@ -10,29 +10,6 @@ import torch.nn as nn
 import tqdm
 
 from src.utils.lars import LARS
- 
-class FeatureCache:
-    """Memory-mapped (N, 4*D) features + int64 labels"""
-
-    def __init__(self, root, embed_dim, repr_mode):
-        self.feats = np.load(os.path.join(root, "features.npy"), mmap_mode="r")
-        self.labels = np.load(os.path.join(root, "labels.npy"))
-        self.n = self.feats.shape[0]
-
-        if repr_mode == "last":
-            self.col_slice = slice(self.feats.shape[1] - embed_dim, self.feats.shape[1])
-            self.dim = embed_dim
-        elif repr_mode == "last4":
-            self.col_slice = slice(0, self.feats.shape[1])
-            self.dim = self.feats.shape[1]
-        else:
-            raise ValueError(repr_mode)
-        
-    def batch(self, indices, device):
-        x = self.feats[indices, self.col_slice]
-        x = torch.from_numpy(np.ascontiguousarray(x)).to(device).float()
-        y = torch.from_numpy(self.labels[indices]).to(device)
-        return x, y
     
 def build_head(head_type, dim, num_classes=1000):
     linear = nn.Linear(dim, num_classes)

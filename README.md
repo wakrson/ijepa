@@ -49,10 +49,8 @@ A roadmap of downstream tasks for probing I-JEPA's frozen features. The paper fo
 - [ ] Low-level probes — Clevr/Count (object counting), Clevr/Dist (depth/distance)
 
 **Extend dense prediction.** Broaden beyond the headline pair:
-- [ ] Segmentation — Cityscapes, Pascal VOC
-- [ ] Depth — KITTI, plus NYUv2 → SUN RGB-D as an out-of-distribution transfer check
-- [ ] Detection
-- [ ] Optional heavier decoder (e.g. DPT) on top of the frozen backbone
+- [ ] Semantic segmentation — Cityscapes, Pascal VOC
+- [ ] Monocular depth estimation — KITTI, plus NYUv2 → SUN RGB-D as an out-of-distribution transfer check
 
 **Notes on the I-JEPA backbone.**
 - I-JEPA uses a ViT *without* a `[cls]` token — use **average-pooled patch representations** for global/image-level tasks.
@@ -151,8 +149,8 @@ python -m src.extract_features \
 ### ImageNet-1K linear probe train
 ```bash
 python -m src.train_linear_probe \
-    --train-dir=/home/wakr/datasets/imagenet1kval \
-    --val-dir=/home/wakr/datasets/imagenet1kval \
+    --train-dir=/home/wakr/datasets/imagenet1kfeatures \
+    --val-dir=/home/wakr/datasets/imagenet1kvalfeatures \
     --embed-dim=1280 \
     --sweep \
     --repr=last4 \

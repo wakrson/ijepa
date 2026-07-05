@@ -7,30 +7,57 @@
 
 import logging
 import sys
+import os
 
 import torch
+import numpy as np
 
 import src.models.vision_transformer as vit
-from src.utils.schedulers import (
-    WarmupCosineSchedule,
-    CosineWDSchedule)
+from src.utils.schedulers import (WarmupCosineSchedule, CosineWDSchedule)
 from src.utils.tensors import trunc_normal_
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
 
-def load_target_checkpoint(
-    device,
+class FeatureCache:
+    """Memory-mapped (N, 4*D) features + int64 labels"""
+
+    def __init__(self, root, embed_dim, repr_mode):
+        self.feats = np.load(os.path.join(root, "features.npy"), mmap_mode="r")
+        self.labels = np.load(os.path.join(root, "labels.npy"))
+        self.n = self.feats.shape[0]
+
+        if repr_mode == "last":
+            self.col_slice = slice(self.feats.shape[1] - embed_dim, self.feats.shape[1])
+            self.dim = embed_dim
+        elif repr_mode == "last4":
+            self.col_slice = slice(0, self.feats.shape[1])
+            self.dim = self.feats.shape[1]
+        else:
+            raise ValueError(repr_mode)
+        
+    def batch(self, indices, device):
+        x = self.feats[indices, self.col_slice]
+        x = torch.from_numpy(np.ascontiguousarray(x)).to(device).float()
+        y = torch.from_numpy(self.labels[indices]).to(device)
+        return x, y
+
+def load_target_encoder(
     r_path,
     target_encoder,
     opt = None,
     scaler = None
 ):
     try:
-        checkpoint = torch.load(r_path, map_location=torch.device('cpu'))
+        checkpoint = torch.load(r_path, map_location=torch.device('cpu'), weights_only=True)
+    except Exception:
+        checkpoint = torch.load(r_path, map_location=torch.device('cpu'), weights_only=False)
+
+    try:
         epoch = checkpoint['epoch']
 
         pretrained_dict = checkpoint['target_encoder']
+        pretrained_dict = {k.replace('module.', ''): v for k, v in pretrained_dict.items()}
         msg = target_encoder.load_state_dict(pretrained_dict)
         logger.info(f'Loaded pretrained encoder from epoch {epoch} with msg : {msg}')
         print(list(checkpoint.keys()))
@@ -47,7 +74,7 @@ def load_target_checkpoint(
 
     except Exception as e:
         logger.info(f'Encountered error : {e}')
-        epoch = 0
+        raise Exception(f"Unable to load target encoder : {e}")
     
     return target_encoder, opt, scaler, epoch
 
@@ -97,10 +124,10 @@ def load_checkpoint(
     return encoder, predictor, target_encoder, opt, scaler, epoch
 
 def init_target_encoder(
-    device,
     patch_size=16,
     model_name='vit_base',
-    crop_size=224
+    crop_size=224,
+    device=None
 ) -> None:
     encoder = vit.__dict__[model_name](
         img_size=[crop_size],
@@ -112,12 +139,16 @@ def init_target_encoder(
             trunc_normal_(m.weight, std=0.02)
             if m.bias is not None:
                 torch.nn.init.constant_(m.bias, 0)
-                torch.nn.init.constant_(m.weight, 1.0)
-    
+        elif isinstance(m, torch.nn.LayerNorm):
+            torch.nn.init.constant_(m.bias, 0)
+            torch.nn.init.constant_(m.weight, 1.0)
+
     for m in encoder.modules():
         init_weights(m)
 
-    encoder.to(device)
+    if device is not None:
+        encoder.to(device)
+    
     logger.info(encoder)
     return encoder
 
