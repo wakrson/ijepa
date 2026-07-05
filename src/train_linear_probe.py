@@ -10,7 +10,6 @@ import torch.nn as nn
 
 from src.utils.lars import LARS
  
-
 class FeatureCache:
     """Memory-mapped (N, 4*D) features + int64 labels"""
 
@@ -109,4 +108,54 @@ def main():
     parser.add_argument("--val-dir", required=True)
     parser.add_argument("--embed-dim", type=int, required=True)
     parser.add_argument("--sweep", action="store_true")
-    parser.add_argument("--repr")
+    parser.add_argument("--repr", choices=["last", "last4"], default="last4")
+    parser.add_argument("--head", choices=["linear", "bn_linear"], default="bn_linear")
+    parser.add_argument("--ref-lr", type=float, default=0.05)
+    parser.add_argument("--wd", type=float, default=0.0)
+    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--batch-size", type=int, default=16384)
+    parser.add_argument("--out", default="probe_results.json")
+    args = parser.parse_args()
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if args.sweep:
+        grid = list(itertools.product(
+            ["last", "last4"],
+            ["linear", "bn_linear"],
+            [0.01, 0.05, 0.001],
+            [0.0005, 0.0],
+        ))
+    else:
+        grid = [(args.repr, args.head, args.ref_lr, args.wd)]
+    
+    results = []
+    for repr_mode, head_type, ref_lr, wd in grid:
+        train_cache = FeatureCache(args.train_dir, args.embed_dim, repr_mode)
+        val_cache = FeatureCache(args.val_dir, args.embed_dim, repr_mode)
+        acc = train_one_config(
+            train_cache,
+            val_cache,
+            device,
+            ref_lr=ref_lr,
+            wd=wd,
+            head_type=head_type,
+            epochs=args.epochs,
+            batch_size=args.batch_size
+        )
+        results.append({
+            "repr": repr_mode,
+            "head": head_type,
+            "ref_lr": ref_lr,
+            "wd": wd,
+            "val_top1": acc 
+        })
+
+        with open(args.out, "w") as f:
+            json.dump(sorted(results, key=lambda r: -r["val_top1"]), f, indent=2)
+
+    best = max(results, key=lambda r: r["val_top1"])
+    print(f"Best : {best}")
+
+if __name__ == "__main__":
+    main()

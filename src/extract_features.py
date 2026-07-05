@@ -16,13 +16,6 @@ from src.helper import init_target_encoder, load_target_checkpoint
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
-"""
-python -m src.extract_features \
-    --checkpoint=/home/wakr/dev/ijepa/weights/IN1K-vit.h.14-300e.pth.tar \
-    --model-name="vit_huge" \
-    --data-dir=/home/wakr/datasets/imagenet1k \
-    --out-dir=/home/wakr/dev/ijepa/output
-"""
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", required=True, help="Path to pretrained I-JEPA checkpoint")
@@ -87,8 +80,8 @@ def main():
 
     n = len(dataset)
     out_dir = Path(args.out_dir)
-    if out_dir.exists():
-        out_dir /= str(time.time_ns())
+    #if out_dir.exists():
+    #    out_dir /= str(time.time_ns())
     
     out_dir.mkdir(exist_ok=True, parents=True)
     feats_path = out_dir / "features.npy"
