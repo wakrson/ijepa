@@ -134,13 +134,13 @@ Note that all experiment parameters are specified in config files (as opposed to
 ### Extract features
 ```bash
 python -m src.extract_features \
-    --checkpoint=/home/wakr/dev/ijepa/weights/IN1K-vit.h.14-300e.pth.tar \
+    --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
     --data-dir=/home/wakr/datasets/imagenet1k \
     --out-dir=/home/wakr/datasets/imagenet1kfeatures
 
 python -m src.extract_features \
-    --checkpoint=/home/wakr/dev/ijepa/weights/IN1K-vit.h.14-300e.pth.tar \
+    --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
     --data-dir=/home/wakr/datasets/imagenet1kval \
     --out-dir=/home/wakr/datasets/imagenet1kvalfeatures
@@ -148,26 +148,15 @@ python -m src.extract_features \
 
 ### ImageNet-1K linear probe train
 ```bash
-python -m src.train_linear_probe \
+python -m src.train_classification_lp \
     --train-dir=/home/wakr/datasets/imagenet1kfeatures \
     --val-dir=/home/wakr/datasets/imagenet1kvalfeatures \
+    --out-dir=/home/wakr/dev/ijepa/weights/seg_lp \
     --embed-dim=1280 \
     --sweep \
     --repr=last4 \
     --head=bn_linear
 ```
-
-    parser.add_argument("--train-dir", required=True)
-    parser.add_argument("--val-dir", required=True)
-    parser.add_argument("--embed-dim", type=int, required=True)
-    parser.add_argument("--sweep", action="store_true")
-    parser.add_argument("--repr", choices=["last", "last4"], default="last4")
-    parser.add_argument("--head", choices=["linear", "bn_linear"], default="bn_linear")
-    parser.add_argument("--ref-lr", type=float, default=0.05)
-    parser.add_argument("--wd", type=float, default=0.0)
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, default=16384)
-    parser.add_argument("--out", default="probe_results.json")
 
 ### Single-GPU training
 This implementation starts from the [main.py](main.py), which parses the experiment config file and runs the pre-training locally on a multi-GPU (or single-GPU) machine. For example, to run I-JEPA pretraining on GPUs "0","1", and "2" on a local machine using the config [configs/in1k_vith14_ep300.yaml](configs/in1k_vith14_ep300.yaml), type the command:

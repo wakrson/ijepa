@@ -80,6 +80,7 @@ def main():
 
     n = len(dataset)
     out_dir = Path(args.out_dir)
+    import pdb; pdb.set_trace()
     
     out_dir.mkdir(exist_ok=True, parents=True)
     feats_path = out_dir / "features.npy"

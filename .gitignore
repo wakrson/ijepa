@@ -1,7 +1,8 @@
 *.swp
 *.swo
 __pycache__
-weights/
 .venv
 ijepa.egg-info/
 output/
+checkpoints/
+weights/

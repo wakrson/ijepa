@@ -10,17 +10,8 @@ import torch.nn as nn
 import tqdm
 
 from src.utils.lars import LARS
-    
-def build_head(head_type, dim, num_classes=1000):
-    linear = nn.Linear(dim, num_classes)
-    nn.init.trunc_normal_(linear.weight, std=0.01)
-    nn.init.zeros_(linear.bias)
-    if head_type == "linear":
-        return linear
-    elif head_type == "bn_linear":
-        return nn.Sequential(nn.BatchNorm1d(dim, affine=False, eps=1e-6), linear)
-    raise ValueError(head_type)
-    
+from src.models.linear_probing import ClassificationLinearHead
+
 def evaluate(head, cache, device, batch_size):
     head.eval()
     correct, total = 0, 0
@@ -50,9 +41,9 @@ def train_one_config(
     torch.manual_seed(seed)
     np_rng = np.random.default_rng(seed)
 
-    head = build_head(head_type, train_cache.dim).to(device)
+    model = ClassificationLinearHead(head_type, train_cache.dim).to(device)
     base_lr = ref_lr * batch_size / 256.0
-    opt = LARS(head.parameters(), lr=base_lr, weight_decay=wd)
+    opt = LARS(model.parameters(), lr=base_lr, weight_decay=wd)
     criterion = nn.CrossEntropyLoss()
 
     steps_per_epoch = train_cache.n // batch_size
@@ -60,7 +51,7 @@ def train_one_config(
 
     pbar = tqdm.tqdm(
         range(epochs),
-        unit="epoch",
+        unit=" epoch",
         desc=f"lr={ref_lr} wd={wd}"
     )
 
@@ -73,12 +64,12 @@ def train_one_config(
         for step in range(steps_per_epoch):
             idx = np.sort(perm[step * batch_size:(step + 1) * batch_size])
             x, y = train_cache.batch(idx, device)
-            loss = criterion(head(x), y)
+            loss = criterion(model(x), y)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
             
-        val_acc = evaluate(head, val_cache, device, batch_size)
+        val_acc = evaluate(model, val_cache, device, batch_size)
         best_val = max(best_val, val_acc)
         pbar.set_postfix(
             lr=f"{lr}",

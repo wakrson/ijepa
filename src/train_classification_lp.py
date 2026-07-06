@@ -3,6 +3,7 @@ import itertools
 import json
 import os
 from pathlib import Path
+import time
 
 import numpy as np
 import torch
@@ -10,39 +11,7 @@ import torch.nn as nn
 import tqdm
 
 from src.utils.lars import LARS
- 
-class FeatureCache:
-    """Memory-mapped (N, 4*D) features + int64 labels"""
-
-    def __init__(self, root, embed_dim, repr_mode):
-        self.feats = np.load(os.path.join(root, "features.npy"), mmap_mode="r")
-        self.labels = np.load(os.path.join(root, "labels.npy"))
-        self.n = self.feats.shape[0]
-
-        if repr_mode == "last":
-            self.col_slice = slice(self.feats.shape[1] - embed_dim, self.feats.shape[1])
-            self.dim = embed_dim
-        elif repr_mode == "last4":
-            self.col_slice = slice(0, self.feats.shape[1])
-            self.dim = self.feats.shape[1]
-        else:
-            raise ValueError(repr_mode)
-        
-    def batch(self, indices, device):
-        x = self.feats[indices, self.col_slice]
-        x = torch.from_numpy(np.ascontiguousarray(x)).to(device).float()
-        y = torch.from_numpy(self.labels[indices]).to(device)
-        return x, y
-    
-def build_head(head_type, dim, num_classes=1000):
-    linear = nn.Linear(dim, num_classes)
-    nn.init.trunc_normal_(linear.weight, std=0.01)
-    nn.init.zeros_(linear.bias)
-    if head_type == "linear":
-        return linear
-    elif head_type == "bn_linear":
-        return nn.Sequential(nn.BatchNorm1d(dim, affine=False, eps=1e-6), linear)
-    raise ValueError(head_type)
+from src.models.linear_probing import ClassificationLinearHead, FeatureCache
     
 def evaluate(head, cache, device, batch_size):
     head.eval()
@@ -63,6 +32,7 @@ def train_one_config(
     device,
     ref_lr,
     wd,
+    out_dir,
     head_type,
     epochs=50,
     batch_size=16384,
@@ -73,17 +43,18 @@ def train_one_config(
     torch.manual_seed(seed)
     np_rng = np.random.default_rng(seed)
 
-    head = build_head(head_type, train_cache.dim).to(device)
+    use_bn = True if "bn" in head_type else False
+    head = ClassificationLinearHead(train_cache.dim, num_classes=1000, use_bn=use_bn).to(device)
     base_lr = ref_lr * batch_size / 256.0
     opt = LARS(head.parameters(), lr=base_lr, weight_decay=wd)
     criterion = nn.CrossEntropyLoss()
-
+    import pdb; pdb.set_trace()
     steps_per_epoch = train_cache.n // batch_size
     best_val = 0.0
 
     pbar = tqdm.tqdm(
         range(epochs),
-        unit="epoch",
+        unit=" epoch",
         desc=f"lr={ref_lr} wd={wd}"
     )
 
@@ -102,20 +73,27 @@ def train_one_config(
             opt.step()
             
         val_acc = evaluate(head, val_cache, device, batch_size)
+
+        if val_acc > best_val:
+            torch.save(head.state_dict(), f"{out_dir}/model_best.pth")
+
         best_val = max(best_val, val_acc)
+
         pbar.set_postfix(
             lr=f"{lr}",
             loss=f"{loss.item()}",
             val=f"{val_acc}",
             best=f"{best_val}"
         )
-    pbar.close()    
+    pbar.close()
+
     return best_val
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train-dir", required=True)
-    parser.add_argument("--val-dir", required=True)
+    parser.add_argument("--train-dir", type=str, required=True)
+    parser.add_argument("--val-dir", type=str, required=True)
+    parser.add_argument("--out-dir", type=str, required=True)
     parser.add_argument("--embed-dim", type=int, required=True)
     parser.add_argument("--sweep", action="store_true")
     parser.add_argument("--repr", choices=["last", "last4"], default="last4")
@@ -139,8 +117,15 @@ def main():
     else:
         grid = [(args.repr, args.head, args.ref_lr, args.wd)]
     
+    out_dir = Path(args.out_dir)
+    if out_dir.exists() is False:
+        out_dir.mkdir(parents=True)
+    out_dir /= str(int(time.time()))
+    out_dir.mkdir(parents=True)
+
     results = []
-    for repr_mode, head_type, ref_lr, wd in grid:
+    for idx, (repr_mode, head_type, ref_lr, wd) in enumerate(grid):
+        Path(out_dir / str(idx)).mkdir()
         train_cache = FeatureCache(args.train_dir, args.embed_dim, repr_mode)
         val_cache = FeatureCache(args.val_dir, args.embed_dim, repr_mode)
         acc = train_one_config(
@@ -149,6 +134,7 @@ def main():
             device,
             ref_lr=ref_lr,
             wd=wd,
+            out_dir=out_dir / str(idx),
             head_type=head_type,
             epochs=args.epochs,
             batch_size=args.batch_size
@@ -158,10 +144,10 @@ def main():
             "head": head_type,
             "ref_lr": ref_lr,
             "wd": wd,
-            "val_top1": acc 
+            "val_top1": acc
         })
 
-        with open(args.out, "w") as f:
+        with open(out_dir / str(idx) / "results.json", "w") as f:
             json.dump(sorted(results, key=lambda r: -r["val_top1"]), f, indent=2)
 
     best = max(results, key=lambda r: r["val_top1"])
