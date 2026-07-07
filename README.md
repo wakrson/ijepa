@@ -137,7 +137,7 @@ python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
     --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/train \
-    --out-dir=/home/wakr/datasets/imagenetfeatures
+    --out-dir=/media/wakr/steam/datasets/imagenetfeatures
 
 python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \

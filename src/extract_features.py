@@ -72,7 +72,7 @@ def main():
     loader = DataLoader(
         dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=args.workers,
         pin_memory=True,
         drop_last=False
@@ -101,34 +101,40 @@ def main():
     print(f"Extracting {n} images => ({n}, {feat_dim}) fp16")
 
     idx = 0
-    with torch.no_grad():
-        pbar = tqdm.tqdm(total=n, unit="img", smoothing=0.1)
-        for images, labels in loader:
-            images = images.to(device, non_blocking=True)
-            if device.type == "cuda":
-                images = images.half()
+    pbar = tqdm.tqdm(total=n, unit="img", smoothing=0.1)
 
-            _ = model(images) # (B x N_patches x D)
+    try:
+        with torch.no_grad():
+            for images, labels in loader:
+                images = images.to(device, non_blocking=True)
+                if device.type == "cuda":
+                    images = images.half()
 
-            per_layer = []
-            for i in range(k):
-                x = captured[f"block_{i}"] # (B x N x D)
-                x = model.norm(x) 
-                per_layer.append(x.mean(dim=1)) # (B x D)
-            feats = torch.cat(per_layer, dim=-1) # (B x k*D)
+                _ = model(images) # (B x N_patches x D)
 
-            b = feats.shape[0]
-            feats_mm[idx:idx + b] = feats.float().cpu().numpy().astype(np.float16)
-            labels_mm[idx:idx + b] = labels.numpy()
-            idx += b
-            pbar.update(b)
+                per_layer = []
+                for i in range(k):
+                    x = captured[f"block_{i}"] # (B x N x D)
+                    x = model.norm(x) 
+                    per_layer.append(x.mean(dim=1)) # (B x D)
+                feats = torch.cat(per_layer, dim=-1) # (B x k*D)
+
+                b = feats.shape[0]
+                feats_mm[idx:idx + b] = feats.float().cpu().numpy().astype(np.float16)
+                labels_mm[idx:idx + b] = labels.numpy()
+                idx += b
+                pbar.update(b)
+
+        assert idx == n
+
+    except KeyboardInterrupt:
+        print("CTRL-C")
+    finally:
         pbar.close()
-
-    assert idx == n
-    feats_mm.flush()
-    labels_mm.flush()
-    for h in handles:
-        h.remove()
+        feats_mm.flush()
+        labels_mm.flush()
+        for h in handles:
+            h.remove()
     
     with open(out_dir / "meta.json", "w") as f:
         json.dump({

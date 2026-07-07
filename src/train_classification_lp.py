@@ -3,6 +3,7 @@ import time
 import argparse
 import itertools
 from pathlib import Path
+import math
 
 import numpy as np
 import torch
@@ -70,7 +71,8 @@ def train_one_config(
     )
 
     for epoch in pbar:
-        lr = base_lr * (lr_decay_factor ** (epoch // lr_decay_epochs))
+        #lr = base_lr * (lr_decay_factor ** (epoch // lr_decay_epochs))
+        lr = base_lr * 0.5 * (1 + math.cos(math.pi * epoch / epochs))
         for g in opt.param_groups:
             g['lr'] = lr
 
@@ -114,7 +116,7 @@ def main():
     parser.add_argument("--head", choices=["linear", "bn_linear"], default="bn_linear")
     parser.add_argument("--ref-lr", type=float, default=0.05)
     parser.add_argument("--wd", type=float, default=0.0)
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--batch-size", type=int, default=16384)
     parser.add_argument("--out", default="probe_results.json")
     args = parser.parse_args()

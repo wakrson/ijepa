@@ -1,17 +1,19 @@
+import json
+import time
 import argparse
 import itertools
-import json
-import os
 from pathlib import Path
+import math
 
 import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
+import wandb
 
 from src.utils.lars import LARS
-from src.models.linear_probing import ClassificationLinearHead
-
+from src.models.linear_probing import SegLinearHead, FeatureCache
+    
 def evaluate(head, cache, device, batch_size):
     head.eval()
     correct, total = 0, 0
@@ -29,68 +31,96 @@ def train_one_config(
     train_cache,
     val_cache,
     device,
-    ref_lr,
+    base_lr,
     wd,
+    out_dir,
     head_type,
+    num_classes=150,
     epochs=50,
     batch_size=16384,
-    lr_decay_epochs=15,
-    lr_decay_factor=0.1,
     seed=0
 ):
     torch.manual_seed(seed)
     np_rng = np.random.default_rng(seed)
 
-    model = ClassificationLinearHead(head_type, train_cache.dim).to(device)
-    base_lr = ref_lr * batch_size / 256.0
-    opt = LARS(model.parameters(), lr=base_lr, weight_decay=wd)
-    criterion = nn.CrossEntropyLoss()
+    use_bn = True if "bn" in head_type else False
+    head = SegLinearHead(train_cache.dim, num_classes=num_classes, use_bn=use_bn).to(device)
+
+    base_lr = lr * batch_size / 16.0
+    opt = torch.optim.SGD(head.parameters(), lr=base_lr, momentum=0.9, weight_decay=wd)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
+    criterion = nn.CrossEntropyLoss(ignore_index=255)
 
     steps_per_epoch = train_cache.n // batch_size
-    best_val = 0.0
+    best_miou = 0.0
 
-    pbar = tqdm.tqdm(
-        range(epochs),
-        unit=" epoch",
-        desc=f"lr={ref_lr} wd={wd}"
+
+    run = wandb.init(
+        entity="",
+        project="segmentation_lp",
+        name=out_dir.stem,
+        config={
+            "learning_rate": base_lr,
+            "ref_lr": lr,
+            "architecture": "SLP",
+            "head_type": head_type,
+            "num_classes": num_classes,
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "weight_decay": wd,
+            "optimizer": "sgd_momentum_0.9",
+            "schedule": "cosine",
+            "seed": seed,
+        },
     )
 
+    pbar = tqdm.tqdm(range(epochs), unit=" epoch", desc=f"lr={lr} wd={wd}")
+
     for epoch in pbar:
-        lr = base_lr * (lr_decay_factor ** (epoch // lr_decay_epochs))
-        for g in opt.param_groups:
-            g['lr'] = lr
+        head.train()
+        perm = 
 
         perm = np_rng.permutation(train_cache.n)
         for step in range(steps_per_epoch):
             idx = np.sort(perm[step * batch_size:(step + 1) * batch_size])
             x, y = train_cache.batch(idx, device)
-            loss = criterion(model(x), y)
+            loss = criterion(head(x), y)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             opt.step()
             
-        val_acc = evaluate(model, val_cache, device, batch_size)
+        val_acc = evaluate(head, val_cache, device, batch_size)
+
+        if val_acc > best_val:
+            torch.save(head.state_dict(), f"{out_dir}/model_best.pth")
+
         best_val = max(best_val, val_acc)
+
+        run.log({"acc": val_acc, "loss": loss.item()})
+
         pbar.set_postfix(
             lr=f"{lr}",
             loss=f"{loss.item()}",
             val=f"{val_acc}",
             best=f"{best_val}"
         )
-    pbar.close()    
+    run.finish()
+    pbar.close()
+
     return best_val
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train-dir", required=True)
-    parser.add_argument("--val-dir", required=True)
+    parser.add_argument("--train-dir", type=str, required=True)
+    parser.add_argument("--val-dir", type=str, required=True)
+    parser.add_argument("--out-dir", type=str, required=True)
     parser.add_argument("--embed-dim", type=int, required=True)
     parser.add_argument("--sweep", action="store_true")
     parser.add_argument("--repr", choices=["last", "last4"], default="last4")
     parser.add_argument("--head", choices=["linear", "bn_linear"], default="bn_linear")
     parser.add_argument("--ref-lr", type=float, default=0.05)
     parser.add_argument("--wd", type=float, default=0.0)
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--batch-size", type=int, default=16384)
     parser.add_argument("--out", default="probe_results.json")
     args = parser.parse_args()
@@ -107,16 +137,24 @@ def main():
     else:
         grid = [(args.repr, args.head, args.ref_lr, args.wd)]
     
+    out_dir = Path(args.out_dir)
+    if out_dir.exists() is False:
+        out_dir.mkdir(parents=True)
+    out_dir /= str(int(time.time()))
+    out_dir.mkdir(parents=True)
+
     results = []
-    for repr_mode, head_type, ref_lr, wd in grid:
+    for idx, (repr_mode, head_type, ref_lr, wd) in enumerate(grid):
+        Path(out_dir / str(idx)).mkdir()
         train_cache = FeatureCache(args.train_dir, args.embed_dim, repr_mode)
         val_cache = FeatureCache(args.val_dir, args.embed_dim, repr_mode)
-        acc = train_one_config(
+        acc = train(
             train_cache,
             val_cache,
             device,
-            ref_lr=ref_lr,
+            lr=lr,
             wd=wd,
+            out_dir=out_dir / str(idx),
             head_type=head_type,
             epochs=args.epochs,
             batch_size=args.batch_size
@@ -126,10 +164,10 @@ def main():
             "head": head_type,
             "ref_lr": ref_lr,
             "wd": wd,
-            "val_top1": acc 
+            "val_top1": acc
         })
 
-        with open(args.out, "w") as f:
+        with open(out_dir / str(idx) / "results.json", "w") as f:
             json.dump(sorted(results, key=lambda r: -r["val_top1"]), f, indent=2)
 
     best = max(results, key=lambda r: r["val_top1"])
