@@ -1,14 +1,14 @@
+import json
+import time
 import argparse
 import itertools
-import json
-import os
 from pathlib import Path
-import time
 
 import numpy as np
 import torch
 import torch.nn as nn
 import tqdm
+import wandb
 
 from src.utils.lars import LARS
 from src.models.linear_probing import ClassificationLinearHead, FeatureCache
@@ -48,9 +48,20 @@ def train_one_config(
     base_lr = ref_lr * batch_size / 256.0
     opt = LARS(head.parameters(), lr=base_lr, weight_decay=wd)
     criterion = nn.CrossEntropyLoss()
-    import pdb; pdb.set_trace()
     steps_per_epoch = train_cache.n // batch_size
     best_val = 0.0
+
+    run = wandb.init(
+        entity="",
+        project=f"classification_lp",
+        name=out_dir.stem,
+        config={
+            "learning_rate": base_lr,
+            "architecture": "CLSLP",
+            "epochs": epochs,
+            "weight_decay": wd
+        }
+    )
 
     pbar = tqdm.tqdm(
         range(epochs),
@@ -79,12 +90,15 @@ def train_one_config(
 
         best_val = max(best_val, val_acc)
 
+        run.log({"acc": val_acc, "loss": loss.item()})
+
         pbar.set_postfix(
             lr=f"{lr}",
             loss=f"{loss.item()}",
             val=f"{val_acc}",
             best=f"{best_val}"
         )
+    run.finish()
     pbar.close()
 
     return best_val

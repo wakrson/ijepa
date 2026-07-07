@@ -72,7 +72,7 @@ def main():
     loader = DataLoader(
         dataset,
         batch_size=args.batch_size,
-        shuffle=False,
+        shuffle=True,
         num_workers=args.workers,
         pin_memory=True,
         drop_last=False
@@ -80,7 +80,6 @@ def main():
 
     n = len(dataset)
     out_dir = Path(args.out_dir)
-    import pdb; pdb.set_trace()
     
     out_dir.mkdir(exist_ok=True, parents=True)
     feats_path = out_dir / "features.npy"

@@ -50,7 +50,7 @@ A roadmap of downstream tasks for probing I-JEPA's frozen features. The paper fo
 
 **Extend dense prediction.** Broaden beyond the headline pair:
 - [ ] Semantic segmentation — Cityscapes, Pascal VOC
-- [ ] Monocular depth estimation — KITTI, plus NYUv2 → SUN RGB-D as an out-of-distribution transfer check
+- [ ] Monocular depth estimation — KITTI, plus NYUv2 -> SUN RGB-D as an out-of-distribution transfer check
 
 **Notes on the I-JEPA backbone.**
 - I-JEPA uses a ViT *without* a `[cls]` token — use **average-pooled patch representations** for global/image-level tasks.
@@ -136,14 +136,14 @@ Note that all experiment parameters are specified in config files (as opposed to
 python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
-    --data-dir=/home/wakr/datasets/imagenet1k \
-    --out-dir=/home/wakr/datasets/imagenet1kfeatures
+    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/train \
+    --out-dir=/home/wakr/datasets/imagenetfeatures
 
 python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
-    --data-dir=/home/wakr/datasets/imagenet1kval \
-    --out-dir=/home/wakr/datasets/imagenet1kvalfeatures
+    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/val \
+    --out-dir=/home/wakr/datasets/imagenetvalfeatures
 ```
 
 ### ImageNet-1K linear probe train
