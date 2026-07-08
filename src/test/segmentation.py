@@ -1,14 +1,14 @@
-"""Predict NYUv2 depth end-to-end (frozen I-JEPA target encoder + trained
-depth linear probe) and write [image | prediction | ground truth] composites
-into <out-dir>/run#/. Depth is rendered with a fixed colormap (near = dark).
+"""Segment ADE20K images end-to-end (frozen I-JEPA target encoder + trained
+linear probe head) and write [image | prediction | ground truth] composites
+into <out-dir>/run#/.
 
 Example:
-    python -m src.test_depth \
-        --data-dir /home/wakr/datasets/nyuv2 \
-        --split val \
-        --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-        --head ./weights/depth_lp/run1 \
-        --out-dir ./results/
+python -m src.test_segmentation \
+    --data-dir /home/wakr/datasets/ADEChallengeData2016 \
+    --split val \
+    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --head ./weights/segmentation_lp/run1 \
+    --out-dir ./results/
 """
 
 import argparse
@@ -16,7 +16,6 @@ import json
 import random
 from pathlib import Path
 
-import matplotlib
 import numpy as np
 import torch
 import tqdm
@@ -25,12 +24,11 @@ from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
 import src.models.vision_transformer as vit
-from src.datasets.nyu import NYU
-from src.models.linear_probing import DepthLinearHead
+from src.datasets.ade20k import ADE20K
+from src.models.heads import build_head
 
-DEPTH_SCALE = 1000.0
-CMAP = matplotlib.colormaps["viridis"]
-
+NUM_CLASSES = 150
+IGNORE = 255
 
 def load_backbone(path, img_size, device):
     ckpt = torch.load(path, map_location="cpu")
@@ -48,7 +46,7 @@ def load_backbone(path, img_size, device):
 
 @torch.no_grad()
 def get_tokens(encoder, x, repr_mode):
-    """Patch tokens [B, N, D] -- must match src/extract_nyu_features.py."""
+    """Patch tokens [B, N, D] -- must match src/extract_ade20k_features.py."""
     if repr_mode == "last":
         return encoder(x)
     outs = []
@@ -62,29 +60,29 @@ def get_tokens(encoder, x, repr_mode):
     return torch.cat([encoder.norm(o) for o in outs], dim=-1)
 
 
-def colorize(depth, max_depth):
-    """(H, W) meters -> (H, W, 3) uint8; invalid (<= 0) pixels stay black."""
-    norm = np.clip(depth / max_depth, 0.0, 1.0)
-    rgb = (CMAP(norm)[..., :3] * 255).astype(np.uint8)
-    rgb[depth <= 0] = 0
-    return rgb
+def colorize(mask, palette):
+    """(H, W) class indices -> (H, W, 3) uint8; ignore pixels stay black."""
+    out = np.zeros((*mask.shape, 3), dtype=np.uint8)
+    valid = mask != IGNORE
+    out[valid] = palette[mask[valid]]
+    return out
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-dir", required=True, help="NYUv2 root")
-    parser.add_argument("--split", choices=["train", "val", "test"], default="val")
+    parser.add_argument("--data-dir", required=True, help="ADEChallengeData2016 root")
+    parser.add_argument("--split", choices=["train", "val"], default="val")
     parser.add_argument("--backbone", required=True, help="I-JEPA pretraining checkpoint")
     parser.add_argument("--head", required=True, help="dir containing model.pth + config.json")
     parser.add_argument("--out-dir", default="./results/")
     parser.add_argument("--batch-size", type=int, default=16)
-    parser.add_argument("--limit", type=int, default=50, help="images to predict (0 = all)")
+    parser.add_argument("--limit", type=int, default=50, help="images to segment (0 = all)")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     head_dir = Path(args.head)
     cfg = json.loads((head_dir / "config.json").read_text())
-    img_size, max_depth = cfg["img_size"], cfg["max_depth"]
+    img_size = cfg["img_size"]
 
     transform = transforms.Compose([
         transforms.Resize((img_size, img_size)),
@@ -92,12 +90,15 @@ def main():
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
 
-    def target_transform(depth_png):
-        depth_png = depth_png.resize((img_size, img_size), Image.NEAREST)
-        return torch.from_numpy(np.array(depth_png).astype(np.float32) / DEPTH_SCALE)
+    def target_transform(mask):
+        mask = mask.resize((img_size, img_size), Image.NEAREST)
+        t = torch.from_numpy(np.array(mask)).long()
+        t -= 1
+        t[t == -1] = IGNORE
+        return t
 
-    dataset = NYU(split=NYU.Split(args.split), root=args.data_dir,
-                  transform=transform, target_transform=target_transform)
+    dataset = ADE20K(split=ADE20K.Split(args.split), root=args.data_dir,
+                     transform=transform, target_transform=target_transform)
 
     indices = range(len(dataset))
     if args.limit:
@@ -106,7 +107,8 @@ def main():
 
     encoder = load_backbone(args.backbone, img_size, device)
     in_dim = cfg["embed_dim"] * (4 if cfg["repr"] == "last4" else 1)
-    head = DepthLinearHead(in_dim).to(device)
+    head = build_head("segmentation", head_type=args.head_type, dim=in_dim, num_classes=NUM_CLASSES)
+    head = build_head(in_dim, NUM_CLASSES).to(device)
     head.load_state_dict(torch.load(head_dir / "model.pth", map_location=device))
     head.eval()
 
@@ -115,41 +117,40 @@ def main():
     run_dir = out_root / f"run{sum(1 for _ in out_root.glob('run*')) + 1}"
     run_dir.mkdir()
 
-    sq_err, abs_rel, n_delta1, n_valid = 0.0, 0.0, 0, 0
+    # fixed 150-color palette (seeded -> same colors every run)
+    palette = np.random.default_rng(0).integers(0, 256, (NUM_CLASSES, 3), dtype=np.uint8)
+
+    conf = torch.zeros(NUM_CLASSES, NUM_CLASSES, dtype=torch.long, device=device)
     done = 0
     with torch.no_grad():
-        for x, y in tqdm.tqdm(loader, desc=f"predicting {args.split}"):
+        for x, y in tqdm.tqdm(loader, desc=f"segmenting {args.split}"):
             x, y = x.to(device), y.to(device)
             tokens = get_tokens(encoder, x, cfg["repr"])
             g = int(tokens.shape[1] ** 0.5)
-            pred = head(tokens, (g, g), (img_size, img_size)).squeeze(1)
-            pred = pred.clamp(1e-3, max_depth)
+            pred = head(tokens, (g, g), (img_size, img_size)).argmax(dim=1)
 
-            valid = (y > 0) & (y <= max_depth)
-            p, t = pred[valid], y[valid]
-            sq_err += ((p - t) ** 2).sum().item()
-            abs_rel += ((p - t).abs() / t).sum().item()
-            n_delta1 += (torch.maximum(p / t, t / p) < 1.25).sum().item()
-            n_valid += valid.sum().item()
+            valid = y != IGNORE
+            conf += torch.bincount(
+                y[valid] * NUM_CLASSES + pred[valid],
+                minlength=NUM_CLASSES ** 2,
+            ).reshape(NUM_CLASSES, NUM_CLASSES)
 
-            for pd, gt in zip(pred.cpu().numpy(), y.cpu().numpy()):
+            for p, t in zip(pred.cpu().numpy(), y.cpu().numpy()):
                 relpath = dataset.image_paths[indices[done]]
                 img = Image.open(Path(args.data_dir) / relpath).convert("RGB")
                 img = np.array(img.resize((img_size, img_size)))
 
                 composite = np.concatenate(
-                    [img, colorize(pd, max_depth), colorize(gt, max_depth)], axis=1
+                    [img, colorize(p, palette), colorize(t, palette)], axis=1
                 )
                 Image.fromarray(composite).save(run_dir / f"{Path(relpath).stem}.png")
                 done += 1
 
-    metrics = {
-        "rmse": (sq_err / n_valid) ** 0.5,
-        "abs_rel": abs_rel / n_valid,
-        "delta1": 100.0 * n_delta1 / n_valid,
-    }
-    print(f"n={done}  rmse={metrics['rmse']:.3f}  "
-          f"abs_rel={metrics['abs_rel']:.3f}  delta1={metrics['delta1']:.1f}%")
+    inter = conf.diag().float()
+    union = conf.sum(0) + conf.sum(1) - conf.diag()
+    iou = inter / union.clamp(min=1).float()
+    miou = 100.0 * iou[union > 0].mean().item()
+    print(f"mIoU on {done} images: {miou:.2f}")
 
     summary = {
         "split": args.split,
@@ -157,7 +158,7 @@ def main():
         "head": str(head_dir / "model.pth"),
         "config": cfg,
         "n_images": done,
-        **metrics,
+        "miou": miou,
     }
     (run_dir / "summary.json").write_text(json.dumps(summary, indent=2))
     print(f"wrote {done} composites to {run_dir}/")

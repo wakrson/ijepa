@@ -36,12 +36,16 @@ IMAGE_TRANSFORM = transforms.Compose([
     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
 ])
 
-
 def target_transform(depth_png):
-    """16-bit depth PNG -> float32 meters, NEAREST-resized, 0 = invalid."""
+    """Depth PNG -> float32 meters, NEAREST-resized, 0 = invalid.
+    8-bit maps (nyu_data train) span 0..10m over 0..255; 16-bit maps are mm."""
     depth_png = depth_png.resize((IMG_SIZE, IMG_SIZE), Image.NEAREST)
-    return torch.from_numpy(np.array(depth_png).astype(np.float32) / DEPTH_SCALE)
-
+    d = np.array(depth_png)
+    if d.dtype == np.uint8:
+        d = d.astype(np.float32) * (10.0 / 255.0)
+    else:
+        d = d.astype(np.float32) / 1000.0
+    return torch.from_numpy(d)
 
 def load_backbone(path, device):
     ckpt = torch.load(path, map_location="cpu")
@@ -104,12 +108,17 @@ def main():
     labels = np.lib.format.open_memmap(out_dir / "labels.npy", mode="w+",
                                        dtype=np.float16, shape=(n, IMG_SIZE, IMG_SIZE))
 
+    depth_min, depth_max = float("inf"), 0.0
     done = 0
     for x, y in tqdm.tqdm(loader, desc=f"extracting {args.split}"):
+        v = y[y > 0]
+        if v.numel():
+            depth_min = min(depth_min, v.min().item())
+            depth_max = max(depth_max, v.max().item())
         if done == 0:  # depth-scale sanity check
-            v = y[y > 0]
             print(f"first-batch depth range: {v.min():.2f} .. {v.max():.2f} m "
-                  "(expect roughly 0.5 .. 10 for NYU; if ~1000x off, fix DEPTH_SCALE)")
+                  "(expect roughly 0.5 .. 10 for NYU)")
+
         tokens = get_tokens(encoder, x.to(device).half())
         b = tokens.shape[0]
         feats[done:done + b] = tokens.cpu().numpy()
@@ -127,7 +136,9 @@ def main():
         "embed_dim": embed_dim,
         "patch_size": patch_size,
         "img_size": IMG_SIZE,
-        "depth_scale": DEPTH_SCALE,
+        "depth_encoding": "uint8 * 10/255 | uint16 / 1000", # the rule applied
+        "depth_min": round(depth_min, 3),                   # measured over full split
+        "depth_max": round(depth_max, 3),
         "layers": "last4-concat, final block = last embed_dim columns",
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2))

@@ -133,7 +133,7 @@ Note that all experiment parameters are specified in config files (as opposed to
 
 ### Extract features
 ```bash
-python -m src.extract_features \
+python -m src.extract_features.imagenet \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
     --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC \
@@ -141,7 +141,7 @@ python -m src.extract_features \
     --extra=/home/wakr/datasets/imagenet/extra \
     --out-dir=/media/wakr/steam/datasets/imagenetfeatures
 
-python -m src.extract_features \
+python -m src.extract_features.imagenet \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
     --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC \
@@ -196,36 +196,40 @@ python -m src.train_segmentation \
     --repr=last
 ```
 
+### ADE20K test
+```bash
 python -m src.test_segmentation \
     --data-dir /home/wakr/datasets/ADEChallengeData2016 \
     --split val \
     --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --head ./weights/segmentation/run6 \
     --out-dir ./results/
+```
 
-### NYUv2 Extract Features
+### NYU Extract Features
 ```bash
-python -m src.extract_nyu_features \
-    --data-dir /home/wakr/datasets/nyuv2 \
-    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --out-dir /media/wakr/steam/datasets/nyufeatures \
+python -m src.extract_features.nyu \
+    --data-dir=/home/wakr/datasets/nyu_data \
+    --backbone=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --out-dir=/media/wakr/steam/datasets/nyufeatures \
     --split train
 ```
 
 ```bash
-python -m src.extract_nyu_features \
-    --data-dir /home/wakr/datasets/nyuv2 \
-    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --out-dir /media/wakr/steam/datasets/nyufeatures \
+python -m src.extract_features.nyu \
+    --data-dir=/home/wakr/datasets/nyu_data \
+    --backbone=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --out-dir=/media/wakr/steam/datasets/nyufeatures \
     --split val
 ```
 
-### Train Depth
+### Train NYYU
 ```bash
-python -m src.train_depth \
+python -m src.train.depth \
     --train-dir /media/wakr/steam/datasets/nyufeatures/train \
     --val-dir /media/wakr/steam/datasets/nyufeatures/val \
-    --out-dir ./weights/depth/
+    --out-dir ./weights/depth/ \
+    --head-type=conv
 ```
 
 ### Test Depth
@@ -236,6 +240,18 @@ python -m src.test_depth \
     --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --head ./weights/depth/run1 \
     --out-dir ./results/
+```
+
+
+## Train all
+```bash
+python -m src.train_heads \
+    --imagenet-dir /media/wakr/steam/datasets/imagenetfeatures \
+    --ade-dir /media/wakr/steam/datasets/ade20kfeatures \
+    --nyu-dir /media/wakr/steam/datasets/nyufeatures \
+    --embed-dim 1280 \
+    --out-dir ./weights/ \
+    --epochs=50
 ```
 
 ### Single-GPU training

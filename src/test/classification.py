@@ -15,7 +15,7 @@ from torchvision import transforms
 
 import src.models.vision_transformer as vit
 from src.datasets.imagenet import ImageNet
-from src.models.linear_probing import ClassificationLinearHead
+from src.models.heads import build_head
 
 def load_backbone(path, device):
     ckpt = torch.load(path, map_location="cpu")
@@ -32,7 +32,6 @@ def load_backbone(path, device):
     encoder.load_state_dict(state)
     encoder.eval()
     return encoder
-
 
 @torch.no_grad()
 def get_features(encoder, x, repr_mode):
@@ -66,14 +65,13 @@ def main():
     head_dir = Path(args.head)
     cfg = json.loads((head_dir / "config.json").read_text())
 
-    split = ImageNet.Split(args.split)
     transform = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
     ])
-
+    split = ImageNet.Split(args.split)
     dataset = ImageNet(
         split=split,
         root=args.data_dir,
@@ -96,9 +94,7 @@ def main():
 
     encoder = load_backbone(args.backbone, device)
     in_dim = cfg["embed_dim"] * (4 if cfg["repr"] == "last4" else 1)
-    head = ClassificationLinearHead(
-        in_dim, num_classes=len(classes), use_bn="bn" in cfg["head"]
-    ).to(device)
+    head = build_head("classification", head_type=args.head_type, dim=in_dim, num_classes=len(classes)).to(device)
     head.load_state_dict(torch.load(head_dir / "model.pth", map_location=device))
     head.eval()
 

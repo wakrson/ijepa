@@ -12,7 +12,7 @@ import tqdm
 import wandb
 
 from src.utils.lars import LARS
-from src.models.linear_probing import ClassificationLinearHead, FeatureCache
+from src.models.heads import build_head, FeatureCache
     
 def evaluate(head, cache, device, batch_size):
     head.eval()
@@ -45,8 +45,7 @@ def train_one_config(
     torch.manual_seed(seed)
     np_rng = np.random.default_rng(seed)
 
-    use_bn = True if "bn" in head_type else False
-    head = ClassificationLinearHead(train_cache.dim, num_classes=1000, use_bn=use_bn).to(device)
+    head = build_head("classification", head_type=head_type, dim=train_cache.dim, num_classes=1000).to(device)
     base_lr = ref_lr * batch_size / 256.0
     opt = LARS(head.parameters(), lr=base_lr, weight_decay=wd)
     criterion = nn.CrossEntropyLoss()
@@ -95,8 +94,7 @@ def train_one_config(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train-dir", type=str, required=True)
-    parser.add_argument("--val-dir", type=str, required=True)
+    parser.add_argument("--data-dir", type=str, required=True)
     parser.add_argument("--out-dir", type=str, required=True)
     parser.add_argument("--embed-dim", type=int, required=True)
     parser.add_argument("--sweep", action="store_true")
@@ -106,6 +104,7 @@ def main():
     parser.add_argument("--wd", type=float, default=0.0)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=16384)
+    parser.add_argument("--head-type", type=str, required=True)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -127,8 +126,8 @@ def main():
         run_dir = out_dir / f"run{sum(1 for _ in out_dir.glob('run*')) + 1}"
         run_dir.mkdir(parents=True)
         
-        train_cache = FeatureCache(args.train_dir, args.embed_dim, repr_mode)
-        val_cache = FeatureCache(args.val_dir, args.embed_dim, repr_mode)
+        train_cache = FeatureCache(Path(args.data_dir) / "train", args.embed_dim, repr_mode)
+        val_cache = FeatureCache(Path(args.data_dir) / "val", args.embed_dim, repr_mode)
 
         cfg = {
             "embed_dim": args.embed_dim,
@@ -149,7 +148,7 @@ def main():
 
         run = wandb.init(
             entity="",
-            project=f"classification_lp",
+            project=f"classification",
             name=out_dir.stem,
             config=cfg
         )

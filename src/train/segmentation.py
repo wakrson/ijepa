@@ -18,42 +18,10 @@ import torch.nn as nn
 import tqdm
 import wandb
 
-from src.models.linear_probing import SegLinearHead
+from src.models.heads import DenseFeatureCache, build_head
 
 NUM_CLASSES = 150
 IGNORE = 255
-
-
-class DenseFeatureCache:
-    """Memory-mapped (n, n_patches, 4*D) tokens + (n, H, W) uint8 masks."""
-
-    def __init__(self, root, repr_mode):
-        root = Path(root)
-        self.meta = json.loads((root / "meta.json").read_text())
-        self.feats = np.load(root / "features.npy", mmap_mode="r")
-        self.labels = np.load(root / "labels.npy", mmap_mode="r")
-        self.n = self.feats.shape[0]
-
-        g = int(self.meta["n_patches"] ** 0.5)
-        self.grid_hw = (g, g)
-        self.out_hw = (self.meta["img_size"], self.meta["img_size"])
-
-        embed_dim = self.meta["embed_dim"]
-        if repr_mode == "last":
-            self.col_slice = slice(self.feats.shape[2] - embed_dim, self.feats.shape[2])
-            self.dim = embed_dim
-        elif repr_mode == "last4":
-            self.col_slice = slice(0, self.feats.shape[2])
-            self.dim = self.feats.shape[2]
-        else:
-            raise ValueError(repr_mode)
-
-    def batch(self, indices, device):
-        x = self.feats[indices][:, :, self.col_slice]
-        x = torch.from_numpy(np.ascontiguousarray(x)).to(device).float()
-        y = torch.from_numpy(np.ascontiguousarray(self.labels[indices])).to(device).long()
-        return x, y
-
 
 @torch.no_grad()
 def evaluate(head, cache, device, batch_size):
@@ -77,11 +45,11 @@ def evaluate(head, cache, device, batch_size):
     return 100.0 * iou[present].mean().item()
 
 
-def train(train_cache, val_cache, device, lr, wd, epochs, batch_size, out_dir, run, seed=0):
+def train(train_cache, val_cache, device, lr, wd, epochs, batch_size, out_dir, run, head_type=None, seed=0):
     torch.manual_seed(seed)
     np_rng = np.random.default_rng(seed)
 
-    head = SegLinearHead(train_cache.dim, NUM_CLASSES).to(device)
+    head = build_head("segmentation", head_type=head_type, num_classes=NUM_CLASSES, dim=train_cache.dim).to(device)
     opt = torch.optim.SGD(head.parameters(), lr=lr, momentum=0.9, weight_decay=wd)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
     criterion = nn.CrossEntropyLoss(ignore_index=IGNORE)
@@ -116,20 +84,21 @@ def train(train_cache, val_cache, device, lr, wd, epochs, batch_size, out_dir, r
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--train-dir", required=True, help="dense feature cache (train)")
-    parser.add_argument("--val-dir", required=True, help="dense feature cache (val)")
+    parser.add_argument("--data-dir", required=True, help="dense feature cache (train)")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--repr", choices=["last", "last4"], default="last4")
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--wd", type=float, default=0.0)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--head-type", type=str, required=True)
+
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    train_cache = DenseFeatureCache(args.train_dir, args.repr)
-    val_cache = DenseFeatureCache(args.val_dir, args.repr)
+    train_cache = DenseFeatureCache(Path(args.data_dir) / "train", args.repr, label_dtype="long")
+    val_cache = DenseFeatureCache(Path(args.data_dir) / "val", args.repr, label_dtype="long")
     assert train_cache.meta["backbone"] == val_cache.meta["backbone"], \
         "train/val caches were built from different backbones"
 
@@ -147,6 +116,7 @@ def main():
         "wd": args.wd,
         "epochs": args.epochs,
         "batch_size": args.batch_size,
+        "head_type": args.head_type
     }
     with open(run_dir / "config.json", "w") as f:
         json.dump(cfg, f, indent=2)
@@ -155,7 +125,7 @@ def main():
 
     miou = train(train_cache, val_cache, device,
                  lr=args.lr, wd=args.wd, epochs=args.epochs,
-                 batch_size=args.batch_size, out_dir=run_dir, run=run)
+                 batch_size=args.batch_size, out_dir=run_dir, head_type=args.head_type, run=run)
     cfg["val_miou"] = miou
 
     with open(run_dir / "config.json", "w") as f:
