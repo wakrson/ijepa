@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
+from src.datasets.imagenet import ImageNet
 from src.helper import init_target_encoder, load_target_encoder
 
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
@@ -27,6 +28,7 @@ def parse_args():
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--num-last-layers", type=int, default=4)
+    parser.add_argument("--extra", type=str, default=None)
     return parser.parse_args()
 
 def main():
@@ -39,8 +41,8 @@ def main():
     model, _, _, _ = load_target_encoder(args.checkpoint, model)
 
     model.eval().to(device)
-    if device.type == "cuda":
-        model.half()
+    #if device.type == "cuda":
+    #    model.half()
     
     for param in model.parameters():
         param.requires_grad_(False)
@@ -68,7 +70,10 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
-    dataset = datasets.ImageFolder(args.data_dir, transform=transform)
+
+    #dataset = datasets.ImageFolder(args.data_dir, transform=transform)
+    dataset = ImageNet(root=args.data_dir, transform=transform, split=ImageNet.Split.VAL, extra=args.extra)
+
     loader = DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -104,11 +109,11 @@ def main():
     pbar = tqdm.tqdm(total=n, unit="img", smoothing=0.1)
 
     try:
-        with torch.no_grad():
+        with torch.no_grad(), torch.autocast("cuda", dtype=torch.float16):
             for images, labels in loader:
                 images = images.to(device, non_blocking=True)
-                if device.type == "cuda":
-                    images = images.half()
+                #if device.type == "cuda":
+                #    images = images.half()
 
                 _ = model(images) # (B x N_patches x D)
 

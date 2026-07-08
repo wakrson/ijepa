@@ -137,20 +137,22 @@ python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
     --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/train \
+    --extra=/home/wakr/datasets/imagenet/extra \
     --out-dir=/media/wakr/steam/datasets/imagenetfeatures
 
 python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
-    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/val \
-    --out-dir=/home/wakr/datasets/imagenetvalfeatures
+    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/ \
+    --extra=/home/wakr/datasets/imagenet/extra \
+    --out-dir=/media/wakr/steam/datasets/imagenetvalfeatures
 ```
 
 ### ImageNet-1K linear probe train
 ```bash
 python -m src.train_classification_lp \
-    --train-dir=/home/wakr/datasets/imagenet1kfeatures \
-    --val-dir=/home/wakr/datasets/imagenet1kvalfeatures \
+    --train-dir=/media/wakr/steam/datasets/imagenetfeatures \
+    --val-dir=/media/wakr/steam/datasets/imagenetvalfeatures \
     --out-dir=/home/wakr/dev/ijepa/weights/seg_lp \
     --embed-dim=1280 \
     --sweep \

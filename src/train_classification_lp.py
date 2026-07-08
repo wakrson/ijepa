@@ -34,7 +34,8 @@ def train_one_config(
     ref_lr,
     wd,
     out_dir,
-    head_type,
+    run=None,
+    head_type=None,
     epochs=50,
     batch_size=16384,
     lr_decay_epochs=15,
@@ -52,18 +53,6 @@ def train_one_config(
     steps_per_epoch = train_cache.n // batch_size
     best_val = 0.0
 
-    run = wandb.init(
-        entity="",
-        project=f"classification_lp",
-        name=out_dir.stem,
-        config={
-            "learning_rate": base_lr,
-            "architecture": "CLSLP",
-            "epochs": epochs,
-            "weight_decay": wd
-        }
-    )
-
     pbar = tqdm.tqdm(
         range(epochs),
         unit=" epoch",
@@ -71,8 +60,8 @@ def train_one_config(
     )
 
     for epoch in pbar:
-        #lr = base_lr * (lr_decay_factor ** (epoch // lr_decay_epochs))
-        lr = base_lr * 0.5 * (1 + math.cos(math.pi * epoch / epochs))
+        lr = base_lr * (lr_decay_factor ** (epoch // lr_decay_epochs))
+        #lr = base_lr * 0.5 * (1 + math.cos(math.pi * epoch / epochs))
         for g in opt.param_groups:
             g['lr'] = lr
 
@@ -116,7 +105,7 @@ def main():
     parser.add_argument("--head", choices=["linear", "bn_linear"], default="bn_linear")
     parser.add_argument("--ref-lr", type=float, default=0.05)
     parser.add_argument("--wd", type=float, default=0.0)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=16384)
     parser.add_argument("--out", default="probe_results.json")
     args = parser.parse_args()
@@ -144,10 +133,26 @@ def main():
         Path(out_dir / str(idx)).mkdir()
         train_cache = FeatureCache(args.train_dir, args.embed_dim, repr_mode)
         val_cache = FeatureCache(args.val_dir, args.embed_dim, repr_mode)
+
+        run = wandb.init(
+            entity="",
+            project=f"classification_lp",
+            name=out_dir.stem,
+            config={
+                "architecture": "CLSLP",
+                "repr_mode": repr_mode,
+                "head_type": head_type,
+                "learning_rate": ref_lr,
+                "weight_decay": wd,
+                "epochs": args.epochs
+            }
+        )
+
         acc = train_one_config(
             train_cache,
             val_cache,
             device,
+            run=run,
             ref_lr=ref_lr,
             wd=wd,
             out_dir=out_dir / str(idx),
