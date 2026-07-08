@@ -136,14 +136,16 @@ Note that all experiment parameters are specified in config files (as opposed to
 python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
-    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/train \
+    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC \
+    --split="train" \
     --extra=/home/wakr/datasets/imagenet/extra \
     --out-dir=/media/wakr/steam/datasets/imagenetfeatures
 
 python -m src.extract_features \
     --checkpoint=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --model-name="vit_huge" \
-    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC/ \
+    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC \
+    --split="val" \
     --extra=/home/wakr/datasets/imagenet/extra \
     --out-dir=/media/wakr/steam/datasets/imagenetvalfeatures
 ```
@@ -156,6 +158,18 @@ python -m src.train_classification_lp \
     --out-dir=/home/wakr/dev/ijepa/weights/seg_lp \
     --embed-dim=1280 \
     --sweep \
+    --repr=last4 \
+    --head=bn_linear
+```
+
+### ImageNet-1K linear probe test
+```bash
+python -m src.test_classification_lp \
+    --data-dir=/media/wakr/steam/datasets/imagenetfeatures \
+    --backbone=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --head=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --out-dir=/home/wakr/dev/ijepa/weights/seg_lp \
+    --embed-dim=1280 \
     --repr=last4 \
     --head=bn_linear
 ```

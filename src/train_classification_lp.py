@@ -107,7 +107,6 @@ def main():
     parser.add_argument("--wd", type=float, default=0.0)
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=16384)
-    parser.add_argument("--out", default="probe_results.json")
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -122,30 +121,40 @@ def main():
     else:
         grid = [(args.repr, args.head, args.ref_lr, args.wd)]
     
+    # Make directory
     out_dir = Path(args.out_dir)
     if out_dir.exists() is False:
         out_dir.mkdir(parents=True)
     out_dir /= str(int(time.time()))
     out_dir.mkdir(parents=True)
 
-    results = []
     for idx, (repr_mode, head_type, ref_lr, wd) in enumerate(grid):
         Path(out_dir / str(idx)).mkdir()
         train_cache = FeatureCache(args.train_dir, args.embed_dim, repr_mode)
         val_cache = FeatureCache(args.val_dir, args.embed_dim, repr_mode)
 
+        cfg = {
+            "embed_dim": args.embed_dim,
+            "architecture": "CLSLP",
+            "repr": repr_mode,
+            "head": head_type,
+            "ref_lr": ref_lr,
+            "wd": wd,
+            "lr_decay_epochs": 15,
+            "lr_decay_factor": 0.1,
+            "seed": 0,
+            "epochs": args.epochs,
+            "batch_size": args.batch_size
+        }
+
+        with open(out_dir / str(idx) / "config.json", "w") as f:
+            json.dump(cfg, f, indent=2)
+
         run = wandb.init(
             entity="",
             project=f"classification_lp",
             name=out_dir.stem,
-            config={
-                "architecture": "CLSLP",
-                "repr_mode": repr_mode,
-                "head_type": head_type,
-                "learning_rate": ref_lr,
-                "weight_decay": wd,
-                "epochs": args.epochs
-            }
+            config=cfg
         )
 
         acc = train_one_config(
@@ -160,19 +169,10 @@ def main():
             epochs=args.epochs,
             batch_size=args.batch_size
         )
-        results.append({
-            "repr": repr_mode,
-            "head": head_type,
-            "ref_lr": ref_lr,
-            "wd": wd,
-            "val_top1": acc
-        })
+        cfg["val_top1"] = acc
 
-        with open(out_dir / str(idx) / "results.json", "w") as f:
-            json.dump(sorted(results, key=lambda r: -r["val_top1"]), f, indent=2)
-
-    best = max(results, key=lambda r: r["val_top1"])
-    print(f"Best : {best}")
+        with open(out_dir / str(idx) / "config.json", "w") as f:
+            json.dump(cfg, f, indent=2)
 
 if __name__ == "__main__":
     main()

@@ -24,6 +24,7 @@ def parse_args():
     parser.add_argument("--model-name", type=str, default="vit_huge")
     parser.add_argument("--resolution", type=int, default=224)
     parser.add_argument("--data-dir", required=True)
+    parser.add_argument("--split", choices=["train", "val"], default="train")
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--workers", type=int, default=8)
@@ -41,9 +42,7 @@ def main():
     model, _, _, _ = load_target_encoder(args.checkpoint, model)
 
     model.eval().to(device)
-    #if device.type == "cuda":
-    #    model.half()
-    
+
     for param in model.parameters():
         param.requires_grad_(False)
     
@@ -71,8 +70,7 @@ def main():
         transforms.Normalize(IMAGENET_MEAN, IMAGENET_STD),
     ])
 
-    #dataset = datasets.ImageFolder(args.data_dir, transform=transform)
-    dataset = ImageNet(root=args.data_dir, transform=transform, split=ImageNet.Split.VAL, extra=args.extra)
+    dataset = ImageNet(root=args.data_dir, transform=transform, split=ImageNet.Split(args.split), extra=args.extra)
 
     loader = DataLoader(
         dataset,
