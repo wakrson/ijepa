@@ -1,107 +1,88 @@
-import collections
-import argparse
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This software may be used and distributed in accordance with
+# the terms of the DINOv3 License Agreement.
 
-import torch
-import torchvision
-import numpy as np
-from PIL import Image
 import os
-from torchvision.datasets import VisionDataset
-import matplotlib.pyplot as plt
+from enum import Enum
+from typing import Any, Callable, List, Optional, Tuple, Union
 
-def colormap(N=256, normalized=False):
-    def bitget(byteval, idx):
-        return ((byteval & (1 << idx)) != 0)
+from PIL import Image
 
-    dtype = 'float32' if normalized else 'uint8'
-    cmap = np.zeros((N, 3), dtype=dtype)
-    for i in range(N):
-        r = g = b = 0
-        c = i
-        for j in range(8):
-            r = r | (bitget(c, 0) << 7-j)
-            g = g | (bitget(c, 1) << 7-j)
-            b = b | (bitget(c, 2) << 7-j)
-            c = c >> 3
+from .decoders import Decoder, DenseTargetDecoder, ImageDataDecoder
+from .extended import ExtendedVisionDataset
 
-        cmap[i] = np.array([r, g, b])
 
-    cmap = cmap/255 if normalized else cmap
-    return cmap
+class _Split(Enum):
+    TRAIN = "train"
+    VAL = "val"
 
-class ADE20K(VisionDataset):
-    cmap = colormap()
+    @property
+    def dirname(self) -> str:
+        return {
+            _Split.TRAIN: "training",
+            _Split.VAL: "validation",
+        }[self]
+
+
+def _file_to_segmentation_path(file_name: str, segm_base_path: str) -> str:
+    file_name_noext = os.path.splitext(file_name)[0]
+    return os.path.join(segm_base_path, file_name_noext + ".png")
+
+
+def _load_segmentation(root: str, split_file_names: List[str]):
+    segm_base_path = "annotations"
+    segmentation_paths = [_file_to_segmentation_path(file_name, segm_base_path) for file_name in split_file_names]
+    return segmentation_paths
+
+
+def _load_file_paths(root: str, split: _Split) -> Tuple[List[str], List[str]]:
+    with open(os.path.join(root, f"ADE20K_object150_{split.value}.txt")) as f:
+        split_file_names = sorted(f.read().strip().split("\n"))
+
+    all_segmentation_paths = _load_segmentation(root, split_file_names)
+    file_names = [os.path.join("images", el) for el in split_file_names]
+    return file_names, all_segmentation_paths
+
+
+class ADE20K(ExtendedVisionDataset):
+    Split = Union[_Split]
+    Labels = Union[Image.Image]
 
     def __init__(
         self,
-        root,
-        split="training",
-        transform=None,
-        target_transform=None,
-        transforms=None,
-    ):
-        super(ADE20K, self).__init__(
+        split: "ADE20K.Split",
+        root: Optional[str] = None,
+        transforms: Optional[Callable] = None,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        image_decoder: Decoder = ImageDataDecoder,
+        target_decoder: Decoder = DenseTargetDecoder,
+    ) -> None:
+        super().__init__(
             root=root,
             transforms=transforms,
             transform=transform,
-            target_transform=target_transform
+            target_transform=target_transform,
+            image_decoder=image_decoder,
+            target_decoder=target_decoder,
         )
-        assert split in ['training', 'validation'], "split should be \'training\' or \'validation\'"
-        self.root = os.path.expanduser(root)
-        self.split = split
-        self.num_classes = 150
 
-        img_list = []
-        lbl_list = []
-        img_dir = os.path.join( self.root, 'images', self.split )
-        lbl_dir = os.path.join( self.root, 'annotations', self.split )
+        self.image_paths, self.target_paths = _load_file_paths(root, split)
 
-        for img_name in os.listdir( img_dir ):
-            img_list.append( os.path.join( img_dir, img_name ) )
-            lbl_list.append( os.path.join( lbl_dir, img_name[:-3]+'png') )
+    def get_image_data(self, index: int) -> bytes:
+        image_relpath = self.image_paths[index]
+        image_full_path = os.path.join(self.root, image_relpath)
+        with open(image_full_path, mode="rb") as f:
+            image_data = f.read()
+        return image_data
 
-        self.img_list = img_list
-        self.lbl_list = lbl_list
+    def get_target(self, index: int) -> Any:
+        target_relpath = self.target_paths[index]
+        target_full_path = os.path.join(self.root, target_relpath)
+        with open(target_full_path, mode="rb") as f:
+            target_data = f.read()
+        return target_data
 
-    def __len__(self):
-        return len(self.img_list)
-
-    def __getitem__(self, index):
-        img = Image.open( self.img_list[index] )
-        lbl = Image.open( self.lbl_list[index] )
-        if self.transforms:
-            img, lbl = self.transforms(img, lbl)
-            lbl = np.array(lbl, dtype='uint8') - 1 # 1-150 => 0-149 + 255
-        return img, lbl
-    
-    def visualize(self, index):
-        img = Image.open(self.img_list[index]).convert("RGB")
-        lbl = np.array(Image.open(self.lbl_list[index]), dtype='uint8') - 1
-        color = self.decode_seg_to_color(lbl)
-
-        fig, axes = plt.subplot(1, 2, figsize=(12, 5))
-        axes[0].imshow(img)
-        axes[0].set_title(os.path.basename(self.img_list[index]))
-        axes[1].imshow(color)
-        axes[1].set_title("labels")
-
-        for ax in axes:
-            ax.axis("off")
-        
-        fig.tight_layout()
-        plt.close()
-
-    @classmethod
-    def decode_seg_to_color(cls, mask):
-        """decode semantic mask to RGB image"""
-        return cls.cmap[mask+1]
-    
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str)
-    args = parser.parse_args()
-
-    ds = ADE20K(args.dataset, split="validation")
-    
-    for i in len(ds):
-        ds.visualize(i)
+    def __len__(self) -> int:
+        return len(self.image_paths)
