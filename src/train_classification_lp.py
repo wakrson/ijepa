@@ -61,7 +61,6 @@ def train_one_config(
 
     for epoch in pbar:
         lr = base_lr * (lr_decay_factor ** (epoch // lr_decay_epochs))
-        #lr = base_lr * 0.5 * (1 + math.cos(math.pi * epoch / epochs))
         for g in opt.param_groups:
             g['lr'] = lr
 
@@ -77,7 +76,7 @@ def train_one_config(
         val_acc = evaluate(head, val_cache, device, batch_size)
 
         if val_acc > best_val:
-            torch.save(head.state_dict(), f"{out_dir}/model_best.pth")
+            torch.save(head.state_dict(), f"{out_dir}/model.pth")
 
         best_val = max(best_val, val_acc)
 
@@ -123,13 +122,11 @@ def main():
     
     # Make directory
     out_dir = Path(args.out_dir)
-    if out_dir.exists() is False:
-        out_dir.mkdir(parents=True)
-    out_dir /= str(int(time.time()))
-    out_dir.mkdir(parents=True)
 
     for idx, (repr_mode, head_type, ref_lr, wd) in enumerate(grid):
-        Path(out_dir / str(idx)).mkdir()
+        run_dir = out_dir / f"run{sum(1 for _ in out_dir.glob('run*')) + 1}"
+        run_dir.mkdir(parents=True)
+        
         train_cache = FeatureCache(args.train_dir, args.embed_dim, repr_mode)
         val_cache = FeatureCache(args.val_dir, args.embed_dim, repr_mode)
 
@@ -147,7 +144,7 @@ def main():
             "batch_size": args.batch_size
         }
 
-        with open(out_dir / str(idx) / "config.json", "w") as f:
+        with open(run_dir / "config.json", "w") as f:
             json.dump(cfg, f, indent=2)
 
         run = wandb.init(
@@ -164,14 +161,14 @@ def main():
             run=run,
             ref_lr=ref_lr,
             wd=wd,
-            out_dir=out_dir / str(idx),
+            out_dir=run_dir,
             head_type=head_type,
             epochs=args.epochs,
             batch_size=args.batch_size
         )
         cfg["val_top1"] = acc
 
-        with open(out_dir / str(idx) / "config.json", "w") as f:
+        with open(run_dir / "config.json", "w") as f:
             json.dump(cfg, f, indent=2)
 
 if __name__ == "__main__":

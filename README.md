@@ -155,23 +155,22 @@ python -m src.extract_features \
 python -m src.train_classification_lp \
     --train-dir=/media/wakr/steam/datasets/imagenetfeatures \
     --val-dir=/media/wakr/steam/datasets/imagenetvalfeatures \
-    --out-dir=/home/wakr/dev/ijepa/weights/seg_lp \
+    --out-dir=/home/wakr/dev/ijepa/weights/classification_lp \
     --embed-dim=1280 \
-    --sweep \
     --repr=last4 \
-    --head=bn_linear
+    --head=bn_linear \
+    --sweep \
 ```
 
 ### ImageNet-1K linear probe test
 ```bash
-python -m src.test_classification_lp \
-    --data-dir=/media/wakr/steam/datasets/imagenetfeatures \
+python -m src.test_classification \
+    --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC \
+    --extra=/home/wakr/datasets/imagenet/extra \
+    --split="test" \
     --backbone=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --head=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --out-dir=/home/wakr/dev/ijepa/weights/seg_lp \
-    --embed-dim=1280 \
-    --repr=last4 \
-    --head=bn_linear
+    --head=/home/wakr/dev/ijepa/weights/classification_lp/run1 \
+    --out-dir=./results/
 ```
 
 ### Single-GPU training
