@@ -152,10 +152,10 @@ python -m src.extract_features \
 
 ### ImageNet-1K linear probe train
 ```bash
-python -m src.train_classification_lp \
+python -m src.train_classification \
     --train-dir=/media/wakr/steam/datasets/imagenetfeatures \
     --val-dir=/media/wakr/steam/datasets/imagenetvalfeatures \
-    --out-dir=/home/wakr/dev/ijepa/weights/classification_lp \
+    --out-dir=/home/wakr/dev/ijepa/weights/classification \
     --embed-dim=1280 \
     --repr=last4 \
     --head=bn_linear \
@@ -169,8 +169,73 @@ python -m src.test_classification \
     --extra=/home/wakr/datasets/imagenet/extra \
     --split="test" \
     --backbone=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --head=/home/wakr/dev/ijepa/weights/classification_lp/run1 \
+    --head=/home/wakr/dev/ijepa/weights/classification/run1 \
     --out-dir=./results/
+```
+### ADE20K extract features
+```bash
+python -m src.extract_ade20k_features \
+    --data-dir /home/wakr/datasets/ADEChallengeData2016 \
+    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --out-dir /media/wakr/steam/datasets/ade20kfeatures \
+    --split train
+
+python -m src.extract_ade20k_features \
+    --data-dir /home/wakr/datasets/ADEChallengeData2016 \
+    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --out-dir /media/wakr/steam/datasets/ade20kfeatures \
+    --split val
+```
+
+### ADE20K linear probe train
+```bash
+python -m src.train_segmentation \
+    --train-dir=/media/wakr/steam/datasets/ade20kfeatures/train \
+    --val-dir=/media/wakr/steam/datasets/ade20kfeatures/val \
+    --out-dir=./weights/segmentation/
+    --repr=last
+```
+
+python -m src.test_segmentation \
+    --data-dir /home/wakr/datasets/ADEChallengeData2016 \
+    --split val \
+    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --head ./weights/segmentation/run6 \
+    --out-dir ./results/
+
+### NYUv2 Extract Features
+```bash
+python -m src.extract_nyu_features \
+    --data-dir /home/wakr/datasets/nyuv2 \
+    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --out-dir /media/wakr/steam/datasets/nyufeatures \
+    --split train
+```
+
+```bash
+python -m src.extract_nyu_features \
+    --data-dir /home/wakr/datasets/nyuv2 \
+    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --out-dir /media/wakr/steam/datasets/nyufeatures \
+    --split val
+```
+
+### Train Depth
+```bash
+python -m src.train_depth \
+    --train-dir /media/wakr/steam/datasets/nyufeatures/train \
+    --val-dir /media/wakr/steam/datasets/nyufeatures/val \
+    --out-dir ./weights/depth/
+```
+
+### Test Depth
+```bash
+python -m src.test_depth \
+    --data-dir /home/wakr/datasets/nyuv2 \
+    --split val \
+    --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
+    --head ./weights/depth/run1 \
+    --out-dir ./results/
 ```
 
 ### Single-GPU training
