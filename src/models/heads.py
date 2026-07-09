@@ -18,21 +18,21 @@ class DenseFeatureCache:
     def __init__(self, root, repr_mode, label_dtype="float"):
         root = Path(root)
         self.meta = json.loads((root / "meta.json").read_text())
-        self.feats = np.load(root / "features.npy", mmap_mode="r")
+        self.feats = np.load(root / "features.npy", mmap_mode="r") # (n, N, 4*D) = (n, 256, 5120)
         self.labels = np.load(root / "labels.npy", mmap_mode="r")
         self.n = self.feats.shape[0]
         self.label_dtype = label_dtype
 
-        g = int(self.meta["n_patches"] ** 0.5)
-        self.grid_hw = (g, g)
-        self.out_hw = (self.meta["img_size"], self.meta["img_size"])
+        g = int(self.meta["n_patches"] ** 0.5) # 16
+        self.grid_hw = (g, g) # (16, 16)
+        self.out_hw = (self.meta["img_size"], self.meta["img_size"]) # (224, 224)
 
         embed_dim = self.meta["embed_dim"]
         if repr_mode == "last":
-            self.col_slice = slice(self.feats.shape[2] - embed_dim, self.feats.shape[2])
+            self.col_slice = slice(self.feats.shape[2] - embed_dim, self.feats.shape[2]) # (5120-1280, 5120)
             self.dim = embed_dim
         elif repr_mode == "last4":
-            self.col_slice = slice(0, self.feats.shape[2])
+            self.col_slice = slice(0, self.feats.shape[2]) # (0, 51280)
             self.dim = self.feats.shape[2]
         else:
             raise ValueError(repr_mode)

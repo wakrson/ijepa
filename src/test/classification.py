@@ -94,7 +94,7 @@ def main():
 
     encoder = load_backbone(args.backbone, device)
     in_dim = cfg["embed_dim"] * (4 if cfg["repr"] == "last4" else 1)
-    head = build_head("classification", head_type=args.head_type, dim=in_dim, num_classes=len(classes)).to(device)
+    head = build_head("classification", head_type=cfg["head_type"], dim=in_dim, num_classes=len(classes)).to(device)
     head.load_state_dict(torch.load(head_dir / "model.pth", map_location=device))
     head.eval()
 

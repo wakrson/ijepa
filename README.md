@@ -164,23 +164,23 @@ python -m src.train_classification \
 
 ### ImageNet-1K linear probe test
 ```bash
-python -m src.test_classification \
+python -m src.test.classification \
     --data-dir=/home/wakr/datasets/imagenet/ILSVRC/Data/CLS-LOC \
     --extra=/home/wakr/datasets/imagenet/extra \
     --split="test" \
     --backbone=/home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --head=/home/wakr/dev/ijepa/weights/classification/run1 \
-    --out-dir=./results/
+    --head=./lecture/weights/classification/run7 \
+    --out-dir=./lecture/results/classification
 ```
 ### ADE20K extract features
 ```bash
-python -m src.extract_ade20k_features \
+python -m src.extract_features.ade20k \
     --data-dir /home/wakr/datasets/ADEChallengeData2016 \
     --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --out-dir /media/wakr/steam/datasets/ade20kfeatures \
     --split train
 
-python -m src.extract_ade20k_features \
+python -m src.extract_features.ade20k \
     --data-dir /home/wakr/datasets/ADEChallengeData2016 \
     --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
     --out-dir /media/wakr/steam/datasets/ade20kfeatures \
@@ -189,7 +189,7 @@ python -m src.extract_ade20k_features \
 
 ### ADE20K linear probe train
 ```bash
-python -m src.train_segmentation \
+python -m src.train.segmentation \
     --train-dir=/media/wakr/steam/datasets/ade20kfeatures/train \
     --val-dir=/media/wakr/steam/datasets/ade20kfeatures/val \
     --out-dir=./weights/segmentation/
@@ -198,12 +198,12 @@ python -m src.train_segmentation \
 
 ### ADE20K test
 ```bash
-python -m src.test_segmentation \
+python -m src.test.segmentation \
     --data-dir /home/wakr/datasets/ADEChallengeData2016 \
     --split val \
     --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --head ./weights/segmentation/run6 \
-    --out-dir ./results/
+    --head ./lecture/weights/segmentation/run6 \
+    --out-dir ./lecture/results/segmentation/
 ```
 
 ### NYU Extract Features
@@ -234,12 +234,12 @@ python -m src.train.depth \
 
 ### Test Depth
 ```bash
-python -m src.test_depth \
-    --data-dir /home/wakr/datasets/nyuv2 \
+python -m src.test.depth \
+    --data-dir /home/wakr/datasets/nyu_data \
     --split val \
     --backbone /home/wakr/dev/ijepa/checkpoints/IN1K-vit.h.14-300e.pth.tar \
-    --head ./weights/depth/run1 \
-    --out-dir ./results/
+    --head ./lecture/weights/depth/run8 \
+    --out-dir ./lecture/results/depth
 ```
 
 
